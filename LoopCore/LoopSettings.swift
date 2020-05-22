@@ -11,6 +11,7 @@ import HealthKit
 public enum DosingStrategy: Int, CaseIterable {
     case tempBasalOnly
     case automaticBolus
+    case automaticBolusSuperCorrection
 }
 
 public extension DosingStrategy {
@@ -20,15 +21,19 @@ public extension DosingStrategy {
             return NSLocalizedString("Temp Basal Only", comment: "Title string for temp basal only dosing strategy")
         case .automaticBolus:
             return NSLocalizedString("Automatic Bolus", comment: "Title string for automatic bolus dosing strategy")
+        case .automaticBolusSuperCorrection:
+            return NSLocalizedString("Super Correction", comment: "Title string for automatic bolus with super correction dosing strategy")
         }
     }
-    
+
     var subtitle: String {
         switch self {
         case .tempBasalOnly:
             return NSLocalizedString("Loop will dose via temp basals, limited by your max temp basal setting.", comment: "Description string for temp basal only dosing strategy")
         case .automaticBolus:
-            return NSLocalizedString("Loop will automatically bolus when bg is predicted to be higher than target range, and will use temp basals when bg is predicted to be lower than target range.", comment: "Description string for automatic bolus dosing strategy")
+            return NSLocalizedString("Loop will automatically bolus when bg is predicted to be higher than correction range, and will use temp basals when bg is predicted to be lower than correction range.", comment: "Description string for automatic bolus dosing strategy")
+        case .automaticBolusSuperCorrection:
+            return NSLocalizedString("Loop will automatically deliver a larger correction bolus when bg is elevated and is increasing. The correction takes into account anticipated partial reduction in basal insulin delivery.", comment: "Description string for automatic bolus with super correction dosing strategy")
         }
     }
 }
@@ -58,20 +63,27 @@ public struct LoopSettings: Equatable {
 
     public let retrospectiveCorrectionEnabled = true
     
+    public var integralRetrospectiveCorrectionEnabled = false
+
     public var dosingStrategy: DosingStrategy = .tempBasalOnly
 
     /// The interval over which to aggregate changes in glucose for retrospective correction
     public let retrospectiveCorrectionGroupingInterval = TimeInterval(minutes: 30)
 
-    /// The amount of time since a given date that data should be considered valid
-    public let recencyInterval = TimeInterval(minutes: 15)
+    /// The amount of time since a given date that input data should be considered valid
+    public let inputDataRecencyInterval = TimeInterval(minutes: 15)
+
+    /// Loop completion aging category limits
+    public let completionFreshLimit = TimeInterval(minutes: 6)
+    public let completionAgingLimit = TimeInterval(minutes: 16)
+    public let completionStaleLimit = TimeInterval(hours: 12)
 
     public let batteryReplacementDetectionThreshold = 0.5
 
     public let defaultWatchCarbPickerValue = 15 // grams
 
     public let defaultWatchBolusPickerValue = 1.0 // %
-    
+
     public let bolusPartialApplicationFactor = 0.4 // %
 
     // MARK - Display settings
@@ -79,15 +91,15 @@ public struct LoopSettings: Equatable {
     public let minimumChartWidthPerHour: CGFloat = 50
 
     public let statusChartMinimumHistoryDisplay: TimeInterval = .hours(1)
-    
+
     public var glucoseUnit: HKUnit? {
         return glucoseTargetRangeSchedule?.unit
     }
-    
+
     // MARK - Push Notifications
-    
+
     public var deviceToken: Data?
-    
+
     // MARK - Guardrails
 
     public func allowedSensitivityValues(for unit: HKUnit) -> [Double] {
@@ -118,13 +130,15 @@ public struct LoopSettings: Equatable {
         glucoseTargetRangeSchedule: GlucoseRangeSchedule? = nil,
         maximumBasalRatePerHour: Double? = nil,
         maximumBolus: Double? = nil,
-        suspendThreshold: GlucoseThreshold? = nil
+        suspendThreshold: GlucoseThreshold? = nil,
+        integralRetrospectiveCorrectionEnabled: Bool = false
     ) {
         self.dosingEnabled = dosingEnabled
         self.glucoseTargetRangeSchedule = glucoseTargetRangeSchedule
         self.maximumBasalRatePerHour = maximumBasalRatePerHour
         self.maximumBolus = maximumBolus
         self.suspendThreshold = suspendThreshold
+        self.integralRetrospectiveCorrectionEnabled = integralRetrospectiveCorrectionEnabled
     }
 }
 
@@ -258,7 +272,11 @@ extension LoopSettings: RawRepresentable {
         if let rawThreshold = rawValue["minimumBGGuard"] as? GlucoseThreshold.RawValue {
             self.suspendThreshold = GlucoseThreshold(rawValue: rawThreshold)
         }
-        
+
+        if let integralRetrospectiveCorrectionEnabled = rawValue["integralRetrospectiveCorrectionEnabled"] as? Bool {
+            self.integralRetrospectiveCorrectionEnabled = integralRetrospectiveCorrectionEnabled
+        }
+
         if let rawDosingStrategy = rawValue["dosingStrategy"] as? DosingStrategy.RawValue,
             let dosingStrategy = DosingStrategy(rawValue: rawDosingStrategy) {
             self.dosingStrategy = dosingStrategy
@@ -270,7 +288,8 @@ extension LoopSettings: RawRepresentable {
         var raw: RawValue = [
             "version": LoopSettings.version,
             "dosingEnabled": dosingEnabled,
-            "overridePresets": overridePresets.map { $0.rawValue }
+            "overridePresets": overridePresets.map { $0.rawValue },
+            "integralRetrospectiveCorrectionEnabled": integralRetrospectiveCorrectionEnabled
         ]
 
         raw["glucoseTargetRangeSchedule"] = glucoseTargetRangeSchedule?.rawValue

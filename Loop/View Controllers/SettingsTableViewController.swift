@@ -54,6 +54,7 @@ final class SettingsTableViewController: UITableViewController {
     fileprivate enum LoopRow: Int, CaseCountable {
         case dosing = 0
         case diagnostic
+        case estimation
     }
 
     fileprivate enum PumpRow: Int, CaseCountable {
@@ -175,6 +176,14 @@ final class SettingsTableViewController: UITableViewController {
                 cell.detailTextLabel?.text = nil
                 cell.accessoryType = .disclosureIndicator
 
+                return cell
+            case .estimation:
+                let cell = tableView.dequeueReusableCell(withIdentifier: SettingsTableViewCell.className, for: indexPath)
+                
+                cell.textLabel?.text = NSLocalizedString("Settings Review Report", comment: "The title text for the parameter estimation report cell")
+                cell.detailTextLabel?.text = nil
+                cell.accessoryType = .disclosureIndicator
+                
                 return cell
             }
         case .pump:
@@ -530,6 +539,16 @@ final class SettingsTableViewController: UITableViewController {
             case .basalRate:
                 guard let pumpManager = dataManager.pumpManager else {
                     // Not allowing basal schedule entry without a configured pump.
+                    let alert = UIAlertController(
+                        title: NSLocalizedString("Unconfigured Pump", comment: "Alert title for unconfigured pump"),
+                        message: NSLocalizedString("Please configure a pump to view or edit scheduled basal rates.", comment: "Alert message for attempting to change basal rates before pump was configured."),
+                        preferredStyle: .alert
+                    )
+
+                    let acknowledgeChange = UIAlertAction(title: NSLocalizedString("OK", comment: "Button text to dismiss unconfigured pump alert."), style: .default) { _ in }
+                    alert.addAction(acknowledgeChange)
+
+                    present(alert, animated: true)
                     tableView.deselectRow(at: indexPath, animated: true)
                     return
                 }
@@ -554,6 +573,11 @@ final class SettingsTableViewController: UITableViewController {
                 let vc = CommandResponseViewController.generateDiagnosticReport(deviceManager: dataManager)
                 vc.title = sender?.textLabel?.text
 
+                show(vc, sender: sender)
+            case .estimation:
+                let vc = CommandResponseViewController.generateParameterEstimationReport(deviceManager: dataManager)
+                vc.title = sender?.textLabel?.text
+                
                 show(vc, sender: sender)
             case .dosing:
                 break
