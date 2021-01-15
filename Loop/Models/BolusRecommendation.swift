@@ -11,20 +11,13 @@ import LoopKit
 import HealthKit
 
 
-enum BolusRecommendationNotice {
-    case glucoseBelowSuspendThreshold(minGlucose: GlucoseValue)
-    case currentGlucoseBelowTarget(glucose: GlucoseValue)
-    case predictedGlucoseBelowTarget(minGlucose: GlucoseValue)
-}
-
-
 extension BolusRecommendationNotice {
     public func description(using unit: HKUnit) -> String {
         switch self {
         case .glucoseBelowSuspendThreshold(minGlucose: let minGlucose):
             let glucoseFormatter = NumberFormatter.glucoseFormatter(for: unit)
             let bgStr = glucoseFormatter.string(from: minGlucose.quantity, unit: unit)!
-            return String(format: NSLocalizedString("Predicted glucose of %1$@ is below your suspend threshold setting.", comment: "Notice message when recommending bolus when BG is below the suspend threshold. (1: glucose value)"), bgStr)
+            return String(format: NSLocalizedString("Predicted glucose of %1$@ is below your glucose safety limit setting.", comment: "Notice message when recommending bolus when BG is below the glucose safety limit. (1: glucose value)"), bgStr)
         case .currentGlucoseBelowTarget(glucose: let glucose):
             let glucoseFormatter = NumberFormatter.glucoseFormatter(for: unit)
             let bgStr = glucoseFormatter.string(from: glucose.quantity, unit: unit)!
@@ -44,7 +37,7 @@ extension BolusRecommendationNotice {
 }
 
 extension BolusRecommendationNotice: Equatable {
-    static func ==(lhs: BolusRecommendationNotice, rhs: BolusRecommendationNotice) -> Bool {
+    public static func ==(lhs: BolusRecommendationNotice, rhs: BolusRecommendationNotice) -> Bool {
         switch (lhs, rhs) {
         case (.glucoseBelowSuspendThreshold, .glucoseBelowSuspendThreshold):
             return true
@@ -65,25 +58,12 @@ extension BolusRecommendationNotice: Equatable {
 }
 
 
-struct BolusRecommendation {
-    let amount: Double
-    let pendingInsulin: Double
-    var notice: BolusRecommendationNotice?
-
-    init(amount: Double, pendingInsulin: Double, notice: BolusRecommendationNotice? = nil) {
-        self.amount = amount
-        self.pendingInsulin = pendingInsulin
-        self.notice = notice
-    }
-}
-
-
 extension BolusRecommendation: Comparable {
-    static func ==(lhs: BolusRecommendation, rhs: BolusRecommendation) -> Bool {
+    public static func ==(lhs: BolusRecommendation, rhs: BolusRecommendation) -> Bool {
         return lhs.amount == rhs.amount
     }
 
-    static func <(lhs: BolusRecommendation, rhs: BolusRecommendation) -> Bool {
+    public static func <(lhs: BolusRecommendation, rhs: BolusRecommendation) -> Bool {
         return lhs.amount < rhs.amount
     }
 }
