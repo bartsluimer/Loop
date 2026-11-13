@@ -10,6 +10,10 @@ import LoopUI
 
 class HUDViewTableViewCell: UITableViewCell {
 
-    @IBOutlet var hudView: HUDView!
+    @IBOutlet var hudView: StatusBarHUDView!
 
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        backgroundColor = .secondarySystemBackground
+    }
 }
